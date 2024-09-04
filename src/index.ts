@@ -56,12 +56,10 @@ async function processBlock(idx: number, cfg: TestConfig, provider: e.JsonRpcPro
       }))
     }
     const ii = i
-    if (i == 0) { // TODO: remove this condition
-      promises.push(provider.getTransactionReceipt(txs[i]).catch((err: any) => {
-        console.log(`error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()})`)
-        throw err
-      }))
-    }
+    promises.push(provider.getTransactionReceipt(txs[i]).catch((err: any) => {
+      console.log(`error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()})`)
+      throw err
+    }))
   }
 
   const receipts = await Promise.allSettled(promises)
