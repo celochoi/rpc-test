@@ -11,12 +11,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/safe-json-stringify": "^1.1.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"
   },
   "dependencies": {
     "@types/node": "^22.4.2",
     "ethers": "^6.13.2",
-    "lru-cache": "^11.0.0"
+    "lru-cache": "^11.0.0",
+    "safe-json-stringify": "^1.2.0"
   }
 }

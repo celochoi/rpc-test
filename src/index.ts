@@ -1,4 +1,5 @@
 import {ethers as e, FetchRequest} from "ethers";
+import safeJsonStringify from "safe-json-stringify"
 
 const sleep = (ms: number) => {
   return new Promise(resolve => {
@@ -51,13 +52,13 @@ async function processBlock(idx: number, cfg: TestConfig, provider: e.JsonRpcPro
   for (let i = 0; i < txs.length; i++) {
     if (i == 0) {
       promises.push(provider.send('debug_traceTransaction', [txs[i], {"tracer": "callTracer"}]).catch((err: any) => {
-        console.log(`debug error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()})`)
+        console.log(`debug error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()}) (err: ${safeJsonStringify(err)})`)
         throw err
       }))
     }
     const ii = i
     promises.push(provider.getTransactionReceipt(txs[i]).catch((err: any) => {
-      console.log(`error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()})`)
+      console.log(`error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()}) (err: ${safeJsonStringify(err)})`)
       throw err
     }))
   }
