@@ -173,15 +173,15 @@ async function startScheduler(idx: number, cfg: TestConfig): Promise<TestResult>
       }
 
       if (isFailed) {
-        console.log(`Retry batch. currBlockNumber: ${currBlockNumber}, batch_size: ${batchSize}, totalReqs: ${totalReqs}, totalCalls: ${totalCalls}, totalFails: ${failCalls}, timeoutCalls: ${timeoutCalls}, loopTime: ${(Date.now() - loopStartTime) / 1000}, rps: ${totalCalls / ((Date.now() - cfg.startTimeMs) / 1000)}`)
-        continue
+        // console.log(`Retry batch. currBlockNumber: ${currBlockNumber}, batch_size: ${batchSize}, totalReqs: ${totalReqs}, totalCalls: ${totalCalls}, totalFails: ${failCalls}, timeoutCalls: ${timeoutCalls}, loopTime: ${(Date.now() - loopStartTime) / 1000}, rps: ${totalCalls / ((Date.now() - cfg.startTimeMs) / 1000)}`)
+        // continue
+        console.log(`Failed but skip. currBlockNumber: ${currBlockNumber}, batch_size: ${batchSize}, totalReqs: ${totalReqs}, totalCalls: ${totalCalls}, totalFails: ${failCalls}, timeoutCalls: ${timeoutCalls}, loopTime: ${(Date.now() - loopStartTime) / 1000}, rps: ${totalCalls / ((Date.now() - cfg.startTimeMs) / 1000)}`)
       }
 
       console.log(`Batch Finished. currBlockNumber: ${currBlockNumber}, batch_size: ${batchSize}, totalReqs: ${totalReqs}, totalCalls: ${totalCalls}, totalFails: ${failCalls}, timeoutCalls: ${timeoutCalls}, loopTime: ${(Date.now() - loopStartTime) / 1000}, rps: ${totalCalls / ((Date.now() - cfg.startTimeMs) / 1000)}`)
       currBlockNumber += batchSize
     } catch (err: any) {
       console.log(`scheduler ${idx} catch err (${currBlockNumber}): ${err.toString()}`)
-      continue
     }
   }
   return {
