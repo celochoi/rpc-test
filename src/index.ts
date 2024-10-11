@@ -37,7 +37,7 @@ type Failure = {
 
 async function processBlock(idx: number, cfg: TestConfig, provider: e.JsonRpcProvider, blockNumber: number): Promise<Failure[]> {
   const now = Date.now()
-  console.log(`Scheduler ${idx} start to process block: ${blockNumber}`)
+  console.log(`${now} - Scheduler ${idx} start to process block: ${blockNumber}`)
   let fails: Failure[] = []
 
   // Get txs from block
@@ -50,15 +50,16 @@ async function processBlock(idx: number, cfg: TestConfig, provider: e.JsonRpcPro
   // Get transaction receipts
   const promises = []
   for (let i = 0; i < txs.length; i++) {
-    if (i == 0) {
-      promises.push(provider.send('debug_traceTransaction', [txs[i], {"tracer": "callTracer"}]).catch((err: any) => {
-        console.log(`debug error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()}) (err: ${safeJsonStringify(err)})`)
-        throw err
-      }))
-    }
+    // if (i == 0) {
+    //   promises.push(provider.send('debug_traceTransaction', [txs[i], {"tracer": "callTracer"}]).catch((err: any) => {
+    //     console.log(`debug error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()}) (err: ${safeJsonStringify(err)})`)
+    //     throw err
+    //   }))
+    // }
     const ii = i
+    const requestTime = Date.now()
     promises.push(provider.getTransactionReceipt(txs[i]).catch((err: any) => {
-      console.log(`error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (${Date.now()}) (err: ${safeJsonStringify(err)})`)
+      console.log(`error (scheduler ${idx}) (${txs[ii]}): ${err.toString()} (req_at:${requestTime}, res_at:${Date.now()}) (err: ${safeJsonStringify(err)})`)
       throw err
     }))
   }
@@ -75,7 +76,8 @@ async function processBlock(idx: number, cfg: TestConfig, provider: e.JsonRpcPro
   //   throw Error(`Scheduler ${idx} failed to process ${blockNumber} block (fails: ${fails.length})`)
   // }
 
-  console.log(`Scheduler ${idx} processed block: ${blockNumber}, processedTimeSec: ${(Date.now() - now) / 1000}, fails: ${fails.length}`)
+  const finishTime = Date.now()
+  console.log(`${finishTime} - Scheduler ${idx} processed block: ${blockNumber}, processedTimeSec: ${(finishTime- now) / 1000}, fails: ${fails.length}`)
   return fails
 }
 
