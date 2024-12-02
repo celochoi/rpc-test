@@ -152,6 +152,7 @@ async function startScheduler(idx: number, cfg: TestConfig): Promise<TestResult>
 
       if (currBlockNumber >= latestBlockNumber) {
         // console.log(`Reached to latest block! (latestBlockNumber: ${latestBlockNumber})`)
+        await sleep(200)
         continue
       }
 
@@ -233,6 +234,7 @@ async function main() {
     console.log(`Retry calls: ${results[i].retryCalls}`)
     console.log(`Test time: ${elapsedTimeSecs} secs`)
     console.log(`Avg call time : ${results[i].totalCallMs / results[i].calls} ms (${results[i].totalCallMs / results[i].calls / 1000} sec)`)
+    console.log(`Total call time : ${results[i].totalCallMs} ms`)
     console.log(`RPS: ${results[i].calls / elapsedTimeSecs}`)
     console.log('\n')
   }
