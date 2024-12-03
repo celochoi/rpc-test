@@ -28,6 +28,7 @@ type TestResult = {
   startBlockNumber: number;
   finishBlockNumber: number;
   totalCallMs: number;
+  rpcUrl: string;
 };
 
 type Failure = {
@@ -195,7 +196,8 @@ async function startScheduler(idx: number, cfg: TestConfig): Promise<TestResult>
     finishTimeMs: Date.now(),
     startBlockNumber,
     finishBlockNumber: currBlockNumber - 1,
-    totalCallMs
+    totalCallMs,
+    rpcUrl: cfg.rpcUrl,
   }
 }
 
@@ -227,14 +229,15 @@ async function main() {
   for (let i = 0; i < results.length; i++) {
     const elapsedTimeSecs = (results[i].finishTimeMs - startTimeMs) / 1000
     console.log(`Scheduler: ${results[i].idx}`)
+    console.log(`RPC URL: ${results[i].rpcUrl}`)
     console.log(`Start block: ${results[i].startBlockNumber}`)
     console.log(`Finish block: ${results[i].finishBlockNumber}`)
     console.log(`Total calls: ${results[i].calls}`)
     console.log(`Fail calls: ${results[i].failCalls}`)
     console.log(`Retry calls: ${results[i].retryCalls}`)
     console.log(`Test time: ${elapsedTimeSecs} secs`)
-    console.log(`Avg call time : ${results[i].totalCallMs / results[i].calls} ms (${results[i].totalCallMs / results[i].calls / 1000} sec)`)
-    console.log(`Total call time : ${results[i].totalCallMs} ms`)
+    console.log(`Avg call time: ${results[i].totalCallMs / results[i].calls} ms (${results[i].totalCallMs / results[i].calls / 1000} sec)`)
+    console.log(`Total call time: ${results[i].totalCallMs} ms`)
     console.log(`RPS: ${results[i].calls / elapsedTimeSecs}`)
     console.log('\n')
   }
