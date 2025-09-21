@@ -1,4 +1,8 @@
 import {Connection, clusterApiUrl} from '@solana/web3.js';
+import * as dotenv from 'dotenv';
+
+// .env 파일 로드
+dotenv.config();
 
 // 통계 수집용 인터페이스
 interface SchedulerStats {
