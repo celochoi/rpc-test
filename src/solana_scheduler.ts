@@ -59,7 +59,7 @@ async function getBlocksBulk(
 }
 
 // 메인 스케줄러 함수
-async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
+async function runSolanaScheduler(): Promise<void> {
   console.log('🚀 솔라나 입금 스케줄러 테스트 시작');
   
   // RPC 엔드포인트 설정 (환경변수로 변경 가능)
@@ -74,6 +74,9 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
   // 벌크 사이즈 설정 (환경변수로 변경 가능)
   const BULK_SIZE = parseInt(process.env.BULK_SIZE || '10');
   
+  // 추적 시작 시간 설정 (환경변수로 변경 가능)
+  const MINUTES_AGO = parseInt(process.env.MINUTES_AGO || '30');
+  
   // 쿼리 파라미터를 포함한 완전한 RPC 엔드포인트 구성
   const rpcEndpoint = `${baseRpcEndpoint}/jsonrpc-http?raw_upstream=${RAW_UPSTREAM}&account_id=${ACCOUNT_ID}&project_id=${PROJECT_ID}&cu=${CU}`;
   
@@ -84,6 +87,7 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
   console.log(`   - project_id: ${PROJECT_ID}`);
   console.log(`   - cu: ${CU}`);
   console.log(`📦 벌크 사이즈: ${BULK_SIZE}개`);
+  console.log(`⏰ 추적 시작 시간: ${MINUTES_AGO}분 전부터`);
   console.log(`📡 최종 RPC 엔드포인트: ${rpcEndpoint}`);
   const connection = new Connection(rpcEndpoint, 'finalized');
 
@@ -104,11 +108,11 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
     console.log(`✅ 최신 블록: ${latestSlot}`);
 
     // 지정된 시간(분) 전 블록부터 시작
-    const startSlot = getBlockFromMinutesAgo(latestSlot, minutesAgo);
+    const startSlot = getBlockFromMinutesAgo(latestSlot, MINUTES_AGO);
     stats.startBlock = startSlot;
     stats.endBlock = latestSlot;
-
-    console.log(`🕰️  ${minutesAgo}분 전 블록부터 시작: ${startSlot}`);
+    
+    console.log(`🕰️  ${MINUTES_AGO}분 전 블록부터 시작: ${startSlot}`);
     console.log(`📈 따라갈 블록 수: ${latestSlot - startSlot + 1}개`);
 
     let currentSlot = startSlot;
@@ -156,10 +160,7 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
 
 // 스크립트 실행
 if (require.main === module) {
-  const minutesAgo = parseInt(process.env.MINUTES_AGO || '30');
-  console.log(`⏰ ${minutesAgo}분 전부터 블록 추적 시작`);
-
-  runSolanaScheduler(minutesAgo).catch(error => {
+  runSolanaScheduler().catch(error => {
     console.error('💥 치명적 오류:', error);
     process.exit(1);
   });
