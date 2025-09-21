@@ -1,8 +1,15 @@
-import {Connection, clusterApiUrl} from '@solana/web3.js';
+import axios from 'axios';
 import * as dotenv from 'dotenv';
 
 // .env 파일 로드
 dotenv.config();
+
+// RPC 파라미터 상수 설정 (환경변수로 변경 가능)
+const COMMITMENT = process.env.COMMITMENT || 'finalized';
+const ENCODING = process.env.ENCODING || 'jsonParsed';
+const TRANSACTION_DETAILS = process.env.TRANSACTION_DETAILS || 'full';
+const MAX_SUPPORTED_TRANSACTION_VERSION = parseInt(process.env.MAX_SUPPORTED_TRANSACTION_VERSION || '0');
+const REWARDS = process.env.REWARDS === 'true' ? true : false;
 
 // 통계 수집용 인터페이스
 interface SchedulerStats {
@@ -28,21 +35,46 @@ function getBlockFromMinutesAgo(currentSlot: number, minutes: number): number {
   return Math.max(0, currentSlot - blocksToGoBack);
 }
 
-// 벌크로 블록 정보 가져오기 (10개씩)
+// axios로 getSlot RPC 호출
+async function getLatestSlot(rpcEndpoint: string): Promise<number> {
+  const response = await axios.post(rpcEndpoint, {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'getSlot',
+    params: [{ commitment: COMMITMENT }]
+  });
+  return response.data.result;
+}
+
+// axios로 getBlock RPC 호출 (요청된 파라미터 사용)
+async function getBlockWithAxios(rpcEndpoint: string, slot: number): Promise<void> {
+  await axios.post(rpcEndpoint, {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'getBlock',
+    params: [
+      slot,
+      {
+        commitment: COMMITMENT,
+        encoding: ENCODING,
+        transactionDetails: TRANSACTION_DETAILS,
+        maxSupportedTransactionVersion: MAX_SUPPORTED_TRANSACTION_VERSION,
+        rewards: REWARDS
+      }
+    ]
+  });
+}
+
+// 벌크로 블록 정보 가져오기 (axios 버전)
 async function getBlocksBulk(
-  connection: Connection,
+  rpcEndpoint: string,
   slots: number[],
   stats: SchedulerStats
 ): Promise<void> {
   const promises = slots.map(async (slot) => {
     const startTime = Date.now();
     try {
-      await connection.getParsedBlock(slot, {
-        commitment: 'finalized',
-        transactionDetails: 'full',
-        rewards: false,
-        maxSupportedTransactionVersion: 0
-      });
+      await getBlockWithAxios(rpcEndpoint, slot);
       const endTime = Date.now();
       stats.totalLatency += (endTime - startTime);
       stats.totalGetBlockCalls++;
@@ -60,10 +92,10 @@ async function getBlocksBulk(
 
 // 메인 스케줄러 함수
 async function runSolanaScheduler(): Promise<void> {
-  console.log('🚀 솔라나 입금 스케줄러 테스트 시작');
+  console.log('🚀 솔라나 입금 스케줄러 테스트 시작 (axios 버전)');
   
   // RPC 엔드포인트 설정 (환경변수로 변경 가능)
-  const baseRpcEndpoint = process.env.SOLANA_RPC_ENDPOINT || clusterApiUrl('mainnet-beta');
+  const baseRpcEndpoint = process.env.SOLANA_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
   
   // 쿼리 파라미터 설정 (환경변수로 변경 가능)
   const RAW_UPSTREAM = process.env.RAW_UPSTREAM || 'shared_solana_mainnet_agave_full_http';
@@ -88,8 +120,13 @@ async function runSolanaScheduler(): Promise<void> {
   console.log(`   - cu: ${CU}`);
   console.log(`📦 벌크 사이즈: ${BULK_SIZE}개`);
   console.log(`⏰ 추적 시작 시간: ${MINUTES_AGO}분 전부터`);
+  console.log(`🔧 RPC 파라미터:`);
+  console.log(`   - commitment: ${COMMITMENT}`);
+  console.log(`   - encoding: ${ENCODING}`);
+  console.log(`   - transactionDetails: ${TRANSACTION_DETAILS}`);
+  console.log(`   - maxSupportedTransactionVersion: ${MAX_SUPPORTED_TRANSACTION_VERSION}`);
+  console.log(`   - rewards: ${REWARDS}`);
   console.log(`📡 최종 RPC 엔드포인트: ${rpcEndpoint}`);
-  const connection = new Connection(rpcEndpoint, 'finalized');
 
   const stats: SchedulerStats = {
     totalGetBlockCalls: 0,
@@ -104,7 +141,7 @@ async function runSolanaScheduler(): Promise<void> {
   try {
     // 1. 최신 블록 번호 조회 (getSlot RPC)
     console.log('📊 최신 블록 번호 조회 중...');
-    const latestSlot = await connection.getSlot('finalized');
+    const latestSlot = await getLatestSlot(rpcEndpoint);
     console.log(`✅ 최신 블록: ${latestSlot}`);
 
     // 지정된 시간(분) 전 블록부터 시작
@@ -130,7 +167,7 @@ async function runSolanaScheduler(): Promise<void> {
       console.log(`🔄 블록 ${currentSlot} ~ ${endSlot} 조회 중... (${slotsToFetch.length}개)`);
       
       const bulkStartTime = Date.now();
-      await getBlocksBulk(connection, slotsToFetch, stats);
+      await getBlocksBulk(rpcEndpoint, slotsToFetch, stats);
       const bulkEndTime = Date.now();
       const bulkDuration = bulkEndTime - bulkStartTime;
       
@@ -144,7 +181,7 @@ async function runSolanaScheduler(): Promise<void> {
     stats.endTime = Date.now();
 
     // 결과 출력
-    console.log('\n📊 === 솔라나 스케줄러 테스트 결과 ===');
+    console.log('\n📊 === 솔라나 스케줄러 테스트 결과 (axios 버전) ===');
     console.log(`⏱️  총 소요시간: ${((stats.endTime - stats.startTime) / 1000).toFixed(2)}초`);
     console.log(`🔢 총 getBlock 호출 횟수: ${stats.totalGetBlockCalls}회`);
     console.log(`📦 테스트 블록 범위: ${stats.startBlock} ~ ${stats.endBlock} (${stats.endBlock - stats.startBlock + 1}개 블록)`);
@@ -166,4 +203,4 @@ if (require.main === module) {
   });
 }
 
-export {runSolanaScheduler};
+export { runSolanaScheduler };
