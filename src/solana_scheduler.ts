@@ -71,6 +71,9 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
   const PROJECT_ID = process.env.PROJECT_ID || '100';
   const CU = process.env.CU || '1';
   
+  // 벌크 사이즈 설정 (환경변수로 변경 가능)
+  const BULK_SIZE = parseInt(process.env.BULK_SIZE || '10');
+  
   // 쿼리 파라미터를 포함한 완전한 RPC 엔드포인트 구성
   const rpcEndpoint = `${baseRpcEndpoint}/jsonrpc-http?raw_upstream=${RAW_UPSTREAM}&account_id=${ACCOUNT_ID}&project_id=${PROJECT_ID}&cu=${CU}`;
   
@@ -80,6 +83,7 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
   console.log(`   - account_id: ${ACCOUNT_ID}`);
   console.log(`   - project_id: ${PROJECT_ID}`);
   console.log(`   - cu: ${CU}`);
+  console.log(`📦 벌크 사이즈: ${BULK_SIZE}개`);
   console.log(`📡 최종 RPC 엔드포인트: ${rpcEndpoint}`);
   const connection = new Connection(rpcEndpoint, 'finalized');
 
@@ -108,12 +112,11 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
     console.log(`📈 따라갈 블록 수: ${latestSlot - startSlot + 1}개`);
 
     let currentSlot = startSlot;
-    const batchSize = 10; // 10개씩 벌크로 처리
 
     // 2. 내가 따라온 블록이 최신 블록번호까지 도달했다면 종료
     while (currentSlot <= latestSlot) {
-      // 3. 아직 못따라갔다면 getBlock RPC로 블록 정보 가져오기 (10개씩 벌크)
-      const endSlot = Math.min(currentSlot + batchSize - 1, latestSlot);
+      // 3. 아직 못따라갔다면 getBlock RPC로 블록 정보 가져오기 (벌크로)
+      const endSlot = Math.min(currentSlot + BULK_SIZE - 1, latestSlot);
       const slotsToFetch = [];
 
       for (let slot = currentSlot; slot <= endSlot; slot++) {
@@ -121,8 +124,13 @@ async function runSolanaScheduler(minutesAgo: number = 30): Promise<void> {
       }
 
       console.log(`🔄 블록 ${currentSlot} ~ ${endSlot} 조회 중... (${slotsToFetch.length}개)`);
-
+      
+      const bulkStartTime = Date.now();
       await getBlocksBulk(connection, slotsToFetch, stats);
+      const bulkEndTime = Date.now();
+      const bulkDuration = bulkEndTime - bulkStartTime;
+      
+      console.log(`✅ 블록 ${currentSlot} ~ ${endSlot} 조회 완료 - 소요시간: ${bulkDuration}ms (평균: ${(bulkDuration / slotsToFetch.length).toFixed(1)}ms/블록)`);
 
       currentSlot = endSlot + 1;
 
