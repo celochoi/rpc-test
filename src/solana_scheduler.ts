@@ -112,6 +112,10 @@ async function runSolanaScheduler(): Promise<void> {
   // 추적 시작 시간 설정 (환경변수로 변경 가능)
   const MINUTES_AGO = parseInt(process.env.MINUTES_AGO || '30');
   
+  // 블록 범위 직접 지정 (환경변수로 변경 가능)
+  const FROM_BLOCK = process.env.FROM_BLOCK ? parseInt(process.env.FROM_BLOCK) : null;
+  const TO_BLOCK = process.env.TO_BLOCK ? parseInt(process.env.TO_BLOCK) : null;
+  
   // 쿼리 파라미터를 포함한 완전한 RPC 엔드포인트 구성
   const rpcEndpoint = `${baseRpcEndpoint}/${JSONRPC_PATH}?raw_upstream=${RAW_UPSTREAM}&account_id=${ACCOUNT_ID}&project_id=${PROJECT_ID}&cu=${CU}`;
   
@@ -124,6 +128,9 @@ async function runSolanaScheduler(): Promise<void> {
   console.log(`   - cu: ${CU}`);
   console.log(`📦 벌크 사이즈: ${BULK_SIZE}개`);
   console.log(`⏰ 추적 시작 시간: ${MINUTES_AGO}분 전부터`);
+  console.log(`🎯 블록 범위 설정:`);
+  console.log(`   - FROM_BLOCK: ${FROM_BLOCK !== null ? FROM_BLOCK : '미설정 (시간 기반)'}`);
+  console.log(`   - TO_BLOCK: ${TO_BLOCK !== null ? TO_BLOCK : '미설정 (시간 기반)'}`);
   console.log(`🔧 RPC 파라미터:`);
   console.log(`   - commitment: ${COMMITMENT}`);
   console.log(`   - encoding: ${ENCODING}`);
@@ -143,41 +150,61 @@ async function runSolanaScheduler(): Promise<void> {
   };
 
   try {
-    // 1. 최신 블록 번호 조회 (getSlot RPC)
-    console.log('📊 최신 블록 번호 조회 중...');
-    const latestSlot = await getLatestSlot(rpcEndpoint);
-    console.log(`✅ 최신 블록: ${latestSlot}`);
+    let startSlot: number;
+    let endSlot: number;
 
-    // 지정된 시간(분) 전 블록부터 시작
-    const startSlot = getBlockFromMinutesAgo(latestSlot, MINUTES_AGO);
+    // 블록 범위가 직접 지정된 경우
+    if (FROM_BLOCK !== null && TO_BLOCK !== null) {
+      console.log('🎯 지정된 블록 범위 모드');
+      startSlot = FROM_BLOCK;
+      endSlot = TO_BLOCK;
+      
+      // 유효성 검사
+      if (startSlot > endSlot) {
+        throw new Error(`시작 블록(${startSlot})이 종료 블록(${endSlot})보다 클 수 없습니다.`);
+      }
+      
+      console.log(`📍 지정된 블록 범위: ${startSlot} ~ ${endSlot}`);
+      console.log(`📈 처리할 블록 수: ${endSlot - startSlot + 1}개`);
+    } else {
+      // 기존 시간 기반 로직
+      console.log('⏰ 시간 기반 블록 범위 모드');
+      console.log('📊 최신 블록 번호 조회 중...');
+      const latestSlot = await getLatestSlot(rpcEndpoint);
+      console.log(`✅ 최신 블록: ${latestSlot}`);
+
+      // 지정된 시간(분) 전 블록부터 시작
+      startSlot = getBlockFromMinutesAgo(latestSlot, MINUTES_AGO);
+      endSlot = latestSlot;
+      
+      console.log(`🕰️  ${MINUTES_AGO}분 전 블록부터 시작: ${startSlot}`);
+      console.log(`📈 따라갈 블록 수: ${endSlot - startSlot + 1}개`);
+    }
+
     stats.startBlock = startSlot;
-    stats.endBlock = latestSlot;
-    
-    console.log(`🕰️  ${MINUTES_AGO}분 전 블록부터 시작: ${startSlot}`);
-    console.log(`📈 따라갈 블록 수: ${latestSlot - startSlot + 1}개`);
-
+    stats.endBlock = endSlot;
     let currentSlot = startSlot;
 
-    // 2. 내가 따라온 블록이 최신 블록번호까지 도달했다면 종료
-    while (currentSlot <= latestSlot) {
+    // 2. 내가 따라온 블록이 종료 블록번호까지 도달했다면 종료
+    while (currentSlot <= endSlot) {
       // 3. 아직 못따라갔다면 getBlock RPC로 블록 정보 가져오기 (벌크로)
-      const endSlot = Math.min(currentSlot + BULK_SIZE - 1, latestSlot);
+      const batchEndSlot = Math.min(currentSlot + BULK_SIZE - 1, endSlot);
       const slotsToFetch = [];
 
-      for (let slot = currentSlot; slot <= endSlot; slot++) {
+      for (let slot = currentSlot; slot <= batchEndSlot; slot++) {
         slotsToFetch.push(slot);
       }
 
-      console.log(`🔄 블록 ${currentSlot} ~ ${endSlot} 조회 중... (${slotsToFetch.length}개)`);
+      console.log(`🔄 블록 ${currentSlot} ~ ${batchEndSlot} 조회 중... (${slotsToFetch.length}개)`);
       
       const bulkStartTime = Date.now();
       await getBlocksBulk(rpcEndpoint, slotsToFetch, stats);
       const bulkEndTime = Date.now();
       const bulkDuration = bulkEndTime - bulkStartTime;
       
-      console.log(`✅ 블록 ${currentSlot} ~ ${endSlot} 조회 완료 - 소요시간: ${bulkDuration}ms (평균: ${(bulkDuration / slotsToFetch.length).toFixed(1)}ms/블록)`);
+      console.log(`✅ 블록 ${currentSlot} ~ ${batchEndSlot} 조회 완료 - 소요시간: ${bulkDuration}ms (평균: ${(bulkDuration / slotsToFetch.length).toFixed(1)}ms/블록)`);
 
-      currentSlot = endSlot + 1;
+      currentSlot = batchEndSlot + 1;
 
       // await sleep(50);
     }
