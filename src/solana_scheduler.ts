@@ -97,6 +97,9 @@ async function runSolanaScheduler(): Promise<void> {
   // RPC 엔드포인트 설정 (환경변수로 변경 가능)
   const baseRpcEndpoint = process.env.SOLANA_RPC_ENDPOINT || 'https://api.mainnet-beta.solana.com';
   
+  // JSON-RPC 경로 설정 (환경변수로 변경 가능)
+  const JSONRPC_PATH = process.env.JSONRPC_PATH || 'jsonrpc-http';
+  
   // 쿼리 파라미터 설정 (환경변수로 변경 가능)
   const RAW_UPSTREAM = process.env.RAW_UPSTREAM || 'shared_solana_mainnet_agave_full_http';
   const ACCOUNT_ID = process.env.ACCOUNT_ID || '10';
@@ -110,9 +113,10 @@ async function runSolanaScheduler(): Promise<void> {
   const MINUTES_AGO = parseInt(process.env.MINUTES_AGO || '30');
   
   // 쿼리 파라미터를 포함한 완전한 RPC 엔드포인트 구성
-  const rpcEndpoint = `${baseRpcEndpoint}/jsonrpc-http?raw_upstream=${RAW_UPSTREAM}&account_id=${ACCOUNT_ID}&project_id=${PROJECT_ID}&cu=${CU}`;
+  const rpcEndpoint = `${baseRpcEndpoint}/${JSONRPC_PATH}?raw_upstream=${RAW_UPSTREAM}&account_id=${ACCOUNT_ID}&project_id=${PROJECT_ID}&cu=${CU}`;
   
   console.log(`📡 기본 RPC 엔드포인트: ${baseRpcEndpoint}`);
+  console.log(`🛣️  JSON-RPC 경로: ${JSONRPC_PATH}`);
   console.log(`🔧 쿼리 파라미터:`);
   console.log(`   - raw_upstream: ${RAW_UPSTREAM}`);
   console.log(`   - account_id: ${ACCOUNT_ID}`);
