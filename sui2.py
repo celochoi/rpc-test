@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 import urllib.request
 import time
@@ -34,11 +35,23 @@ def rpc_call(url, method, params, timeout=REQUEST_TIMEOUT):
 def get_latest_tx(url):
     """노드에서 최신 트랜잭션 가져오기"""
     try:
+        # 최신 체크포인트 번호 가져오기
         result = rpc_call(url, "sui_getLatestCheckpointSequenceNumber", [])
+        if 'result' not in result:
+            return {'url': url, 'success': False, 'error': f'No result: {result}'}
+
         checkpoint = result['result']
 
-        txs_result = rpc_call(url, "sui_getTransactionBlock", [{"checkpoint": str(checkpoint)}])
-        digest = txs_result['result']['digest']
+        # 최신 트랜잭션 블록들 가져오기
+        txs_result = rpc_call(url, "suix_queryTransactionBlocks", [{
+            "filter": None,
+            "options": {"showInput": False, "showEffects": False}
+        }, None, 1, True])
+
+        if 'result' not in txs_result or 'data' not in txs_result['result'] or not txs_result['result']['data']:
+            return {'url': url, 'success': False, 'error': 'No transaction data'}
+
+        digest = txs_result['result']['data'][0]['digest']
 
         return {
             'url': url,
@@ -59,6 +72,14 @@ def multi_get_tx_on_node(url, digests):
     try:
         result = rpc_call(url, "sui_multiGetTransactionBlocks", [digests, {"showInput": True, "showEffects": True}])
         elapsed = time.time() - start
+
+        if 'result' not in result:
+            return {
+                'url': url,
+                'elapsed': elapsed,
+                'success': False,
+                'error': f'No result in response: {result}'
+            }
 
         return {
             'url': url,
