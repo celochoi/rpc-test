@@ -60,6 +60,16 @@ def encode_digest_to_base64url(digest_base58: str) -> str:
         log(f"Original digest: {digest_base58}", "ERROR")
         raise
 
+def encode_checkpoint_to_base64url(checkpoint_num: int) -> str:
+    try:
+        import struct
+        checkpoint_bytes = struct.pack('<Q', checkpoint_num)
+        encoded = base64.urlsafe_b64encode(checkpoint_bytes).decode().rstrip('=')
+        return encoded
+    except Exception as e:
+        log(f"Checkpoint 인코딩 실패: {e}", "ERROR")
+        raise
+
 def get_latest_transactions(limit: int = 5) -> Optional[list]:
     payload = {
         "jsonrpc": "2.0",
@@ -69,9 +79,9 @@ def get_latest_transactions(limit: int = 5) -> Optional[list]:
             {
                 "filter": None,
                 "options": {
-                    "showInput": False,
-                    "showEffects": False,
-                    "showEvents": False
+                    "showInput": True,
+                    "showEffects": True,
+                    "showEvents": True
                 }
             },
             None,
@@ -100,13 +110,9 @@ def get_latest_transactions(limit: int = 5) -> Optional[list]:
             return None
 
         transactions = result['result']['data']
-        digests = [tx['digest'] for tx in transactions]
-        log(f"트랜잭션 {len(digests)}개 조회 완료", "SUCCESS")
+        log(f"트랜잭션 {len(transactions)}개 조회 완료", "SUCCESS")
 
-        if digests:
-            log(f"첫 번째 digest (Base58): {digests[0]}", "INFO")
-
-        return digests
+        return transactions
 
     except urllib.error.URLError as e:
         if hasattr(e, 'reason'):
@@ -123,19 +129,32 @@ def get_latest_transactions(limit: int = 5) -> Optional[list]:
         log(f"스택 트레이스:\n{traceback.format_exc()}", "ERROR")
         return None
 
-def test_transactions_store(digest: str, encoded: str, test_num: int, total: int) -> bool:
-    data_types = [
-        ("tx", "Transaction"),
-        ("fx", "Effects"),
-        ("tx2c", "Tx→Checkpoint"),
-    ]
+def test_transactions_store(tx_data: dict, test_num: int, total: int) -> bool:
+    digest = tx_data['digest']
+    checkpoint = tx_data.get('checkpoint')
 
     log(f"\n{'='*80}")
     log(f"테스트 [{test_num}/{total}]", "INFO")
-    log(f"  Digest (Base58): {digest}", "INFO")
-    log(f"  Encoded (Base64-URL): {encoded[:40]}...", "INFO")
+    log(f"  Digest: {digest}", "INFO")
+    log(f"  Checkpoint: {checkpoint}", "INFO")
 
-    for type_code, type_name in data_types:
+    encoded_digest = encode_digest_to_base64url(digest)
+
+    data_types = [
+        ("tx", "Transaction", encoded_digest),
+        ("fx", "Effects", encoded_digest),
+        ("tx2c", "Tx→Checkpoint", encoded_digest),
+        ("evtx", "Events", encoded_digest),
+    ]
+
+    if checkpoint:
+        encoded_checkpoint = encode_checkpoint_to_base64url(checkpoint)
+        data_types.extend([
+            ("cs", "Checkpoint Summary", encoded_checkpoint),
+            ("cc", "Checkpoint Contents", encoded_checkpoint),
+        ])
+
+    for type_code, type_name, encoded in data_types:
         url = f"{TRANSACTIONS_STORE_URL}/{encoded}/{type_code}"
         log(f"\n  [{type_name}] 요청 중...")
         log(f"  URL: {url}")
@@ -169,17 +188,9 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
                 log(f"  ○ 데이터 없음 ({status_code}) - {elapsed:.2f}초 (정상)", "INFO")
             elif status_code == 403:
                 log(f"  ✗ 접근 거부! ({status_code}) - {elapsed:.2f}초", "ERROR")
-                try:
-                    log(f"  응답: {e.read().decode('utf-8', errors='ignore')[:500]}", "ERROR")
-                except:
-                    pass
                 return False
             elif 500 <= status_code < 600:
                 log(f"  ✗ 서버 에러! ({status_code}) - {elapsed:.2f}초", "ERROR")
-                try:
-                    log(f"  응답: {e.read().decode('utf-8', errors='ignore')[:500]}", "ERROR")
-                except:
-                    pass
                 return False
             else:
                 log(f"  ? HTTP 에러 ({status_code}) - {elapsed:.2f}초", "WARNING")
@@ -193,8 +204,7 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
                     log(f"  설정 타임아웃: {REQUEST_TIMEOUT}초", "CRITICAL")
                     log(f"  실제 경과 시간: {elapsed:.2f}초", "CRITICAL")
                     log(f"  URL: {url}", "CRITICAL")
-                    log(f"  Digest (Base58): {digest}", "CRITICAL")
-                    log(f"  Encoded Digest: {encoded}", "CRITICAL")
+                    log(f"  Digest: {digest}", "CRITICAL")
                     log(f"  Data Type: {type_name} ({type_code})", "CRITICAL")
                     log(f"\n  {'*'*60}", "CRITICAL")
                     log(f"  *** 30초 Hang 문제 재현! ***", "CRITICAL")
@@ -203,11 +213,9 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
                 else:
                     log(f"  ✗ 연결 실패! - {elapsed:.2f}초", "ERROR")
                     log(f"  에러: {e.reason}", "ERROR")
-                    log(f"  URL: {url}", "ERROR")
                     return False
             else:
                 log(f"  ✗ URL 에러! - {elapsed:.2f}초", "ERROR")
-                log(f"  에러: {e}", "ERROR")
                 return False
 
         except Exception as e:
@@ -215,7 +223,6 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
             log(f"  ✗ 예상치 못한 에러! - {elapsed:.2f}초", "ERROR")
             log(f"  에러 타입: {type(e).__name__}", "ERROR")
             log(f"  에러 내용: {e}", "ERROR")
-            log(f"  URL: {url}", "ERROR")
             import traceback
             log(f"  스택 트레이스:\n{traceback.format_exc()}", "ERROR")
             return False
@@ -224,16 +231,15 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
 
 def main():
     log(f"\n{'='*80}", "INFO")
-    log("Sui Transactions Store 연속 테스트 시작", "INFO")
-    log("표준 라이브러리만 사용 (urllib)", "INFO")
+    log("Sui multi_get_transaction_blocks 재현 테스트", "INFO")
+    log("실제 RPC와 동일한 순서로 요청", "INFO")
     log(f"{'='*80}\n", "INFO")
 
     log(f"설정:", "INFO")
     log(f"  - RPC URL: {RPC_URL}")
     log(f"  - Transactions Store: {TRANSACTIONS_STORE_URL}")
     log(f"  - Request Timeout: {REQUEST_TIMEOUT}초")
-    log(f"  - Loop Delay: {LOOP_DELAY}초")
-    log(f"  - Retry: 없음 (실패 시 즉시 종료)\n")
+    log(f"  - Loop Delay: {LOOP_DELAY}초\n")
 
     iteration = 0
     success_count = 0
@@ -245,24 +251,13 @@ def main():
             log(f"반복 #{iteration} 시작", "INFO")
             log(f"{'#'*80}", "INFO")
 
-            digests = get_latest_transactions(limit=3)
-            if not digests:
-                log(f"\n{'!'*80}", "CRITICAL")
-                log(f"트랜잭션 조회 실패! 테스트 중단", "CRITICAL")
-                log(f"{'!'*80}\n", "CRITICAL")
-                log(f"최종 통계:", "INFO")
-                log(f"  - 총 반복: {iteration}")
-                log(f"  - 성공한 트랜잭션 테스트: {success_count}")
+            transactions = get_latest_transactions(limit=1)
+            if not transactions:
+                log(f"\n트랜잭션 조회 실패! 테스트 중단", "CRITICAL")
                 return 1
 
-            for idx, digest in enumerate(digests, 1):
-                try:
-                    encoded = encode_digest_to_base64url(digest)
-                except Exception as e:
-                    log(f"Digest 인코딩 실패, 다음 트랜잭션으로 넘어감", "WARNING")
-                    continue
-
-                success = test_transactions_store(digest, encoded, idx, len(digests))
+            for idx, tx_data in enumerate(transactions, 1):
+                success = test_transactions_store(tx_data, idx, len(transactions))
 
                 if not success:
                     log(f"\n{'!'*80}", "CRITICAL")
@@ -271,18 +266,13 @@ def main():
                     log(f"최종 통계:", "INFO")
                     log(f"  - 총 반복: {iteration}")
                     log(f"  - 성공한 트랜잭션 테스트: {success_count}")
-                    log(f"  - 실패한 트랜잭션: {digest[:40]}...")
                     return 1
 
                 success_count += 1
 
-                if idx < len(digests):
-                    time.sleep(0.5)
-
             log(f"\n반복 #{iteration} 완료 - 모든 트랜잭션 정상", "SUCCESS")
             log(f"현재 통계 - 성공: {success_count}", "INFO")
 
-            log(f"\n{LOOP_DELAY}초 대기...\n", "INFO")
             time.sleep(LOOP_DELAY)
             
     except KeyboardInterrupt:
