@@ -9,8 +9,8 @@ from typing import Optional
 
 RPC_URL = "https://fullnode.mainnet.sui.io:443"
 TRANSACTIONS_STORE_URL = "https://transactions.sui.io/mainnet"
-REQUEST_TIMEOUT = 10
-LOOP_DELAY = 2
+REQUEST_TIMEOUT = 30
+LOOP_DELAY = 0.1
 
 class Colors:
     HEADER = '\033[95m'
@@ -138,7 +138,7 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
     for type_code, type_name in data_types:
         url = f"{TRANSACTIONS_STORE_URL}/{encoded}/{type_code}"
         log(f"\n  [{type_name}] 요청 중...")
-        log(f"  URL: {url[:80]}...")
+        log(f"  URL: {url}")
 
         start_time = time.time()
 
@@ -152,7 +152,9 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
 
                 if status_code == 200:
                     size = len(content)
+                    preview = content[:20].hex() if len(content) >= 20 else content.hex()
                     log(f"  ✓ 성공! ({status_code}) - {elapsed:.2f}초 - {size:,} bytes", "SUCCESS")
+                    log(f"  데이터 미리보기 (hex): {preview}", "SUCCESS")
                 else:
                     log(f"  ? 예상치 못한 상태 코드 ({status_code}) - {elapsed:.2f}초", "WARNING")
 
@@ -195,7 +197,7 @@ def test_transactions_store(digest: str, encoded: str, test_num: int, total: int
                     log(f"  Encoded Digest: {encoded}", "CRITICAL")
                     log(f"  Data Type: {type_name} ({type_code})", "CRITICAL")
                     log(f"\n  {'*'*60}", "CRITICAL")
-                    log(f"  *** 30초 Hang 문제 재현 가능성 높음! ***", "CRITICAL")
+                    log(f"  *** 30초 Hang 문제 재현! ***", "CRITICAL")
                     log(f"  {'*'*60}\n", "CRITICAL")
                     return False
                 else:
