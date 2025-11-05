@@ -60,14 +60,16 @@ def encode_digest_to_base64url(digest_base58: str) -> str:
         log(f"Original digest: {digest_base58}", "ERROR")
         raise
 
-def encode_checkpoint_to_base64url(checkpoint_num: int) -> str:
+def encode_checkpoint_to_base64url(checkpoint_num) -> str:
     try:
         import struct
+        if isinstance(checkpoint_num, str):
+            checkpoint_num = int(checkpoint_num)
         checkpoint_bytes = struct.pack('<Q', checkpoint_num)
         encoded = base64.urlsafe_b64encode(checkpoint_bytes).decode().rstrip('=')
         return encoded
     except Exception as e:
-        log(f"Checkpoint 인코딩 실패: {e}", "ERROR")
+        log(f"Checkpoint 인코딩 실패: {checkpoint_num} ({type(checkpoint_num)})", "ERROR")
         raise
 
 def get_latest_transactions(limit: int = 5) -> Optional[list]:
@@ -136,7 +138,7 @@ def test_transactions_store(tx_data: dict, test_num: int, total: int) -> bool:
     log(f"\n{'='*80}")
     log(f"테스트 [{test_num}/{total}]", "INFO")
     log(f"  Digest: {digest}", "INFO")
-    log(f"  Checkpoint: {checkpoint}", "INFO")
+    log(f"  Checkpoint: {checkpoint} (type: {type(checkpoint).__name__})", "INFO")
 
     encoded_digest = encode_digest_to_base64url(digest)
 
@@ -147,12 +149,17 @@ def test_transactions_store(tx_data: dict, test_num: int, total: int) -> bool:
         ("evtx", "Events", encoded_digest),
     ]
 
-    if checkpoint:
-        encoded_checkpoint = encode_checkpoint_to_base64url(checkpoint)
-        data_types.extend([
-            ("cs", "Checkpoint Summary", encoded_checkpoint),
-            ("cc", "Checkpoint Contents", encoded_checkpoint),
-        ])
+    if checkpoint is not None and checkpoint != "":
+        try:
+            encoded_checkpoint = encode_checkpoint_to_base64url(checkpoint)
+            data_types.extend([
+                ("cs", "Checkpoint Summary", encoded_checkpoint),
+                ("cc", "Checkpoint Contents", encoded_checkpoint),
+            ])
+        except Exception as e:
+            log(f"  Checkpoint 인코딩 실패, cs/cc 스킵: {e}", "WARNING")
+    else:
+        log(f"  Checkpoint 정보 없음, cs/cc 스킵", "INFO")
 
     for type_code, type_name, encoded in data_types:
         url = f"{TRANSACTIONS_STORE_URL}/{encoded}/{type_code}"
