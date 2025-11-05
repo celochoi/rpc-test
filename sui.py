@@ -1,9 +1,3 @@
-"""
-Sui Transactions Store 스트레스 테스트
-최신 트랜잭션을 계속 조회하면서 transactions.sui.io의 응답을 모니터링
-에러 발생 시 즉시 중단 (표준 라이브러리만 사용)
-"""
-
 import urllib.request
 import urllib.error
 import json
