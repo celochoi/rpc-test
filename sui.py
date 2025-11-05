@@ -8,10 +8,14 @@ from datetime import datetime
 from typing import Optional, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# 내부 Sui 노드들
 RPC_URLS = [
-    "https://fullnode.mainnet.sui.io:443",
-    "https://sui-mainnet.nodeinfra.com",
-    "https://mainnet.suiet.app",
+    "http://192.168.34.90:9000",
+    "http://192.168.34.85:9000",
+    "http://192.168.34.94:9000",
+    "http://192.168.34.122:9000",
+    "http://192.168.66.35:9000",
+    "http://192.168.66.36:9000",
 ]
 
 TRANSACTIONS_STORE_URL = "https://transactions.sui.io/mainnet"
@@ -134,7 +138,7 @@ def get_latest_transaction_from_node(rpc_url: str) -> Optional[dict]:
         return None
 
 def get_latest_transaction_from_all_nodes() -> Optional[dict]:
-    log(f"\n여러 노드에서 동시에 최신 트랜잭션 조회 중...")
+    log(f"\n{len(RPC_URLS)}개 노드에서 동시에 최신 트랜잭션 조회 중...")
     start_time = time.time()
 
     results = []
@@ -335,7 +339,7 @@ def test_transactions_store(tx_data: dict, test_num: int, total: int) -> bool:
 def main():
     log(f"\n{'='*80}", "INFO")
     log("Sui multi_get_transaction_blocks 재현 테스트", "INFO")
-    log("노드 조회 & transactions.sui.io 모두 병렬 처리", "INFO")
+    log("내부 노드 조회 & transactions.sui.io 병렬 처리", "INFO")
     log(f"{'='*80}\n", "INFO")
 
     log(f"설정:", "INFO")
